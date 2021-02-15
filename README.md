@@ -61,7 +61,7 @@ defer db.Close()
 myDB := MyDB{DB: db}
 fs := http.Dir("")
 migrator := migrations.NewMigrator(myDB, fs)
-migrator.CLI()
+migrator.CLI(migrator)
 ```
 
 Example CLI usage for a tool name "migrate"
