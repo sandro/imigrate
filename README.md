@@ -29,10 +29,10 @@ Unfortunately, some assembly required.
 
 I Migrate has a command line interface, but you have to provide the glue to make it work. I know it's bummer when code doesn't just work out of the box, but if that's what you needed, you wouldn't be here. On the upside, you can name the migration binary whatever you want, or skip it all together.
 
-```
+```go
 // MyDB conforms to the Executor interface by defining Exec and Select
 type MyDB struct {
-	*sql.DB
+  *sql.DB
 }
 
 func (o MyDB) Select(query string, args ...interface{}) (versions []int64, err error) {
@@ -66,7 +66,7 @@ migrator.CLI()
 
 Example CLI usage for a tool name "migrate"
 
-```
+```sh
 migrate create create_users_table
 
 migrate up
