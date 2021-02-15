@@ -36,25 +36,25 @@ type MyDB struct {
 }
 
 func (o MyDB) Select(query string, args ...interface{}) (versions []int64, err error) {
-	rows, err := o.Query(query, args...)
-	if err != nil {
-		return
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var version int64
-		if err = rows.Scan(&version); err != nil {
-			return
-		}
-		versions = append(versions, version)
-	}
-	err = rows.Err()
-	return
+  rows, err := o.Query(query, args...)
+  if err != nil {
+    return
+  }
+  defer rows.Close()
+  for rows.Next() {
+    var version int64
+    if err = rows.Scan(&version); err != nil {
+      return
+    }
+    versions = append(versions, version)
+  }
+  err = rows.Err()
+  return
 }
 
 db, err := sql.Open("sqlite3", "db.sqlite3")
 if err != nil {
-	log.Panic(err)
+  log.Panic(err)
 }
 defer db.Close()
 
