@@ -13,6 +13,8 @@ This project aims to fulfill the following needs:
 1. Database driver agnostic via a sql Exec interface.
 1. No config files. (But config in code) 
 
+[Read the docs](https://pkg.go.dev/github.com/sandro/imigrate)
+
 ## Motivation
 
 I didn't want to write this code, I really didn't. Migrations should be commodity code, and there are already dozens of libraries available. Further, after finding [shmig](https://github.com/mbucc/shmig), I had written off needing a migration tool ever again, but that was before I needed to ship an actual migration to prod.
