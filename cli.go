@@ -6,8 +6,14 @@ import (
 	"os"
 )
 
-const HelpText = "Please specify up, down, redo, rollback, or status."
+// HelpText is printed when no command is specified.
+const HelpText = "Please specify up, down, redo, rollback, status, or create."
 
+// CLI parses os.Args and runs the appropriate migration command.
+// Commands available are up, down, redo, rollback, status, and create.
+// Most commands accept a "steps" flag which is parsed as an int. Use -steps=1
+// to set it.  Up, down, and redo accept a "version" flag which is parsed as
+// int64. Use --version=1610069160 to set it.
 func CLI(migrator Migrator) {
 	upCmd := flag.NewFlagSet("up", flag.ExitOnError)
 	upSteps := upCmd.Int("steps", -1, "how many migrations to execute forward")
