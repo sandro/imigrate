@@ -21,7 +21,7 @@ These days, prod is different. It's docker container running a single binary. An
 
 Great, so instead I decided to use the most popular migration tool with embedded sql migration support. But that's when I hit the interface problem. You see, one of my projects uses a non-standard SQLite driver that doesn't conform to database/sql, while another project uses the standard driver. I checked a few libraries and though some looked very promising ([gloat](https://github.com/gsamokovarov/gloat)) by offering interfaces for migrations, they eventually relied on sql.Rows or another database struct. And that's when I decided to use my Saturday to create this simple library.
 
-But with increased flexibility comes an increased cost. This tool requires configuration through code. Remember, it's interface-driven which means the tool provides an interface while you provide the logic. Not to worry though, it's a fairly straight forward interface: allow the tool to Exec sql and Select an array of ids and it'll manage your migrations for you! A wholesome give and take.
+But with increased flexibility comes an increased cost. This tool requires configuration through code. Remember, it's interface-driven which means the tool provides an interface while you provide the logic. Not to worry though, it's a fairly straight forward interface: allow the tool to `Exec` sql and `GetVersions` (return an array of ids) and it'll manage your migrations for you! A wholesome give and take.
 
 ## Usage
 
@@ -30,12 +30,12 @@ Unfortunately, some assembly required.
 I Migrate has a command line interface, but you have to provide the glue to make it work. I know it's bummer when code doesn't just work out of the box, but if that's what you needed, you wouldn't be here. On the upside, you can name the migration binary whatever you want, or skip it all together.
 
 ```go
-// MyDB conforms to the Executor interface by defining Exec and Select
+// MyDB conforms to the Executor interface by defining Exec and GetVersions
 type MyDB struct {
   *sql.DB
 }
 
-func (o MyDB) Select(query string, args ...interface{}) (versions []int64, err error) {
+func (o MyDB) GetVersions(query string, args ...interface{}) (versions []int64, err error) {
   rows, err := o.Query(query, args...)
   if err != nil {
     return
