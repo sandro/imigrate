@@ -351,6 +351,10 @@ func (o IMigrator) pending() {
 // name.  It will insert the provided TemplateUp and TemplateDn strings into
 // the appropriate sections of the migration file.
 func (o IMigrator) Create(name string) {
+	err := os.MkdirAll(o.Dirname, os.ModeDir)
+	if err != nil {
+		log.Panic(err)
+	}
 	now := time.Now()
 	fname := fmt.Sprintf("%d-%s.sql", now.Unix(), name)
 	path := filepath.Join(o.Dirname, fname)
