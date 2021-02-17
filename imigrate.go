@@ -58,7 +58,7 @@ type Migrator interface {
 type Migration struct {
 	Version  int64
 	Time     time.Time
-	FileInfo *os.FileInfo
+	FileInfo os.FileInfo
 	Up       string
 	Dn       string
 }
@@ -76,7 +76,7 @@ func (o *Migration) Valid(file http.File, upKey, dnKey *regexp.Regexp) (valid bo
 				valid = upStart && dnStart
 				break
 			}
-			log.Println("read stringnerror", err)
+			log.Println("read string error", err)
 			break
 		}
 		if !upStart && upKey.MatchString(l) {
@@ -109,9 +109,9 @@ type IMigrator struct {
 	CreateTableSQL    string         // The SQL to create the migrations table.
 	Migrations        []Migration
 	FileVersionRegexp *regexp.Regexp // The Regexp to detect a migration file.
-	Completed         []int64        // Completed migrations
 	TemplateUp        string         // The SQL to place in the UP section of a generated file.
 	TemplateDn        string         // The SQL to place in the DOWN section of a generated file.
+	setupDone         bool
 }
 
 // NewIMigrator returns a default migrator with the SQLite dialect.
@@ -130,18 +130,18 @@ PRAGMA foreign_keys = ON;
 
 BEGIN;
 COMMIT;
-		`,
+`,
 		TemplateDn: `
 PRAGMA foreign_keys = OFF;
 
 BEGIN;
-COMMIT;
-		`,
+COMMIT;`,
 	}
 	m.CreateTableSQL = fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
-%s integer primary key,
-migrated_at timestamp not null default (datetime(current_timestamp))
+	%s integer primary key,
+	migrated_at timestamp not null default (datetime(current_timestamp))
+);
 `, m.TableName, m.VersionColumn)
 	return m
 }
@@ -162,9 +162,10 @@ func (o *IMigrator) getCompletedVersions() []int64 {
 }
 
 func (o *IMigrator) setup() {
-	o.Migrations = make([]Migration, 0)
+	if o.setupDone {
+		return
+	}
 	o.createTable()
-	o.Completed = o.getCompletedVersions()
 	root, err := o.FS.Open(o.Dirname)
 	if err != nil {
 		log.Panic(err)
@@ -191,17 +192,18 @@ func (o *IMigrator) setup() {
 		migration := Migration{
 			Version:  nn,
 			Time:     time.Unix(nn, 0),
-			FileInfo: &info,
+			FileInfo: info,
 		}
 		if migration.Valid(f, o.UpKey, o.DnKey) {
 			o.Migrations = append(o.Migrations, migration)
 		}
 		f.Close()
+		o.setupDone = true
 	}
 }
 
 func (o IMigrator) migrated(m Migration) bool {
-	for _, v := range o.Completed {
+	for _, v := range o.getCompletedVersions() {
 		if v == m.Version {
 			return true
 		}
@@ -220,13 +222,13 @@ func getLastId(res sql.Result) int64 {
 // Up runs all migrations that have not been run.  If steps is greater than -1,
 // it will run that many migrations in ascending order.  If version is greater
 // than 0, it will migrate up that specific version.
-func (o IMigrator) Up(steps int, version int64) {
+func (o *IMigrator) Up(steps int, version int64) {
 	o.setup()
 	if version != 0 {
 		o.upVersion(version)
 		return
 	}
-	sort.Slice(o.Migrations, func(i, j int) bool { return o.Migrations[i].Version < o.Migrations[j].Version })
+	o.sortAscending()
 	completed := 0
 	for _, m := range o.Migrations {
 		if completed == steps {
@@ -265,13 +267,13 @@ func (o IMigrator) upVersion(version int64) {
 // If steps is greater than -1, it will step down that many migrations.
 // If version is greater than 0, it will only migrate down that specific
 // version.
-func (o IMigrator) Down(steps int, version int64) {
+func (o *IMigrator) Down(steps int, version int64) {
 	o.setup()
 	if version != 0 {
 		o.downVersion(version)
 		return
 	}
-	sort.Slice(o.Migrations, func(i, j int) bool { return o.Migrations[i].Version > o.Migrations[j].Version })
+	o.sortDescending()
 	completed := 0
 	for _, m := range o.Migrations {
 		if completed == steps {
@@ -307,30 +309,36 @@ func (o IMigrator) downVersion(version int64) {
 }
 
 // Redo runs Down, then Up
-func (o IMigrator) Redo(steps int, version int64) {
+func (o *IMigrator) Redo(steps int, version int64) {
 	o.Down(steps, version)
 	o.Up(steps, version)
 }
 
 // Rollback runs the down SQL for the most recent migration.
 // If steps is greater than 1, it will run that many migrations down.
-func (o IMigrator) Rollback(steps int) {
+func (o *IMigrator) Rollback(steps int) {
 	o.Down(steps, 0)
 }
 
 // Status prints out which migrations have been run and which are pending.
-func (o IMigrator) Status() {
+func (o *IMigrator) Status() {
 	log.Println("STATUS")
 	o.setup()
-	for _, v := range o.Completed {
+	for _, v := range o.getCompletedVersions() {
 		log.Println("Migration Completed", v)
 	}
 	o.pending()
 }
 
-func (o IMigrator) pending() {
-	o.setup()
+func (o *IMigrator) sortAscending() {
 	sort.Slice(o.Migrations, func(i, j int) bool { return o.Migrations[i].Version < o.Migrations[j].Version })
+}
+func (o *IMigrator) sortDescending() {
+	sort.Slice(o.Migrations, func(i, j int) bool { return o.Migrations[i].Version > o.Migrations[j].Version })
+}
+
+func (o IMigrator) pending() {
+	o.sortAscending()
 	for _, m := range o.Migrations {
 		if !o.migrated(m) {
 			log.Println("Pending", m.Version)
