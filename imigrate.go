@@ -149,14 +149,14 @@ CREATE TABLE IF NOT EXISTS %s (
 func (o IMigrator) createTable() {
 	_, err := o.DB.Exec(o.CreateTableSQL)
 	if err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
 }
 
 func (o *IMigrator) getCompletedVersions() []int64 {
 	versions, err := o.DB.GetVersions(fmt.Sprintf("select %s from %s order by %s", o.VersionColumn, o.TableName, o.VersionColumn))
 	if err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
 	return versions
 }
@@ -168,17 +168,14 @@ func (o *IMigrator) setup() {
 	o.createTable()
 	root, err := o.FS.Open(o.Dirname)
 	if err != nil {
-		log.Panic(err)
+		log.Panicln("couldn't open", o.Dirname, err)
 	}
 	defer root.Close()
-	if err != nil {
-		log.Panic("couldn't open", o.Dirname, err)
-	}
 	finfos, err := root.Readdir(-1)
 	if err != nil {
-		log.Panic("err during readdir", o.Dirname, err)
+		log.Panicln("err during readdir", o.Dirname, err)
 	}
-	for i, info := range finfos {
+	for _, info := range finfos {
 		n := o.FileVersionRegexp.FindString(info.Name())
 		nn, err := strconv.ParseInt(n, 10, 64)
 		if err != nil {
@@ -186,7 +183,7 @@ func (o *IMigrator) setup() {
 		}
 		f, err := o.FS.Open(path.Join(o.Dirname, info.Name()))
 		if err != nil {
-			log.Println("couldn't open file", info.Name(), i)
+			log.Println("couldn't open file", o.Dirname, info.Name(), err)
 			continue
 		}
 		migration := Migration{
@@ -214,7 +211,7 @@ func (o IMigrator) migrated(m Migration) bool {
 func getLastId(res sql.Result) int64 {
 	id, err := res.LastInsertId()
 	if err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
 	return id
 }
@@ -242,14 +239,14 @@ func (o *IMigrator) Up(steps int, version int64) {
 }
 
 func (o IMigrator) execUp(m Migration) {
-	res, err := o.DB.Exec(m.Up)
+	res, err := o.DB.Exec(strings.TrimSpace(m.Up))
 	if err != nil {
-		log.Panic("Migration err", m.Version, err)
+		log.Panicln("Migration err", m.Version, err)
 	}
 	log.Printf("Up completed %d %d\n", m.Version, getLastId(res))
 	res, err = o.DB.Exec(fmt.Sprintf("INSERT INTO %s (%s) VALUES(?)", o.TableName, o.VersionColumn), m.Version)
 	if err != nil {
-		log.Panic("could not complete UP migration", err)
+		log.Panicln("could not complete UP migration", err)
 	}
 	log.Println("Migration table updated", getLastId(res))
 }
@@ -289,12 +286,12 @@ func (o *IMigrator) Down(steps int, version int64) {
 func (o IMigrator) execDown(m Migration) {
 	res, err := o.DB.Exec(m.Dn)
 	if err != nil {
-		log.Panic("Migration err", m.Version, err)
+		log.Panicln("Migration err", m.Version, err)
 	}
 	log.Printf("Down completed %d %d\n", m.Version, getLastId(res))
 	res, err = o.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s = ?", o.TableName, o.VersionColumn), m.Version)
 	if err != nil {
-		log.Panic("could not complete DOWN migration", err)
+		log.Panicln("could not complete DOWN migration", err)
 	}
 	log.Println("Migration table updated", getLastId(res))
 }
@@ -353,7 +350,7 @@ func (o IMigrator) pending() {
 func (o IMigrator) Create(name string) {
 	err := os.MkdirAll(o.Dirname, os.ModeDir)
 	if err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
 	now := time.Now()
 	fname := fmt.Sprintf("%d-%s.sql", now.Unix(), name)
@@ -361,7 +358,7 @@ func (o IMigrator) Create(name string) {
 	log.Println("Created", path)
 	f, err := os.Create(path)
 	if err != nil {
-		log.Panic(err)
+		log.Panicln(err)
 	}
 	defer f.Close()
 	template := fmt.Sprintf(`
