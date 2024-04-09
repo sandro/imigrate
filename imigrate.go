@@ -17,6 +17,9 @@ import (
 	"time"
 )
 
+var Logger = log.Default()
+var DiscardLogger = log.New(io.Discard, "", log.LstdFlags)
+
 // Executor is the interface to executing SQL
 //
 // Exec executes a SQL query returning a sql.Result. Use this for mutation
@@ -76,7 +79,7 @@ func (o *Migration) Valid(file http.File, upKey, dnKey *regexp.Regexp) (valid bo
 				valid = upStart && dnStart
 				break
 			}
-			log.Println("read string error", err)
+			Logger.Println("read string error", err)
 			break
 		}
 		if !upStart && upKey.MatchString(l) {
@@ -149,14 +152,14 @@ CREATE TABLE IF NOT EXISTS %s (
 func (o IMigrator) createTable() {
 	_, err := o.DB.Exec(o.CreateTableSQL)
 	if err != nil {
-		log.Panicln(err)
+		Logger.Panicln(err)
 	}
 }
 
 func (o *IMigrator) getCompletedVersions() []int64 {
 	versions, err := o.DB.GetVersions(fmt.Sprintf("select %s from %s order by %s", o.VersionColumn, o.TableName, o.VersionColumn))
 	if err != nil {
-		log.Panicln(err)
+		Logger.Panicln(err)
 	}
 	return versions
 }
@@ -168,12 +171,12 @@ func (o *IMigrator) setup() {
 	o.createTable()
 	root, err := o.FS.Open(o.Dirname)
 	if err != nil {
-		log.Panicln("couldn't open", o.Dirname, err)
+		Logger.Panicln("couldn't open", o.Dirname, err)
 	}
 	defer root.Close()
 	finfos, err := root.Readdir(-1)
 	if err != nil {
-		log.Panicln("err during readdir", o.Dirname, err)
+		Logger.Panicln("err during readdir", o.Dirname, err)
 	}
 	for _, info := range finfos {
 		n := o.FileVersionRegexp.FindString(info.Name())
@@ -183,7 +186,7 @@ func (o *IMigrator) setup() {
 		}
 		f, err := o.FS.Open(path.Join(o.Dirname, info.Name()))
 		if err != nil {
-			log.Println("couldn't open file", o.Dirname, info.Name(), err)
+			Logger.Println("couldn't open file", o.Dirname, info.Name(), err)
 			continue
 		}
 		migration := Migration{
@@ -211,7 +214,7 @@ func (o IMigrator) migrated(m Migration) bool {
 func getLastId(res sql.Result) int64 {
 	id, err := res.LastInsertId()
 	if err != nil {
-		log.Panicln(err)
+		Logger.Panicln(err)
 	}
 	return id
 }
@@ -241,14 +244,14 @@ func (o *IMigrator) Up(steps int, version int64) {
 func (o IMigrator) execUp(m Migration) {
 	res, err := o.DB.Exec(strings.TrimSpace(m.Up))
 	if err != nil {
-		log.Panicln("Migration err", m.Version, err)
+		Logger.Panicln("Migration err", m.Version, err)
 	}
-	log.Printf("Up completed %d %d\n", m.Version, getLastId(res))
+	Logger.Printf("Up completed %d %d\n", m.Version, getLastId(res))
 	res, err = o.DB.Exec(fmt.Sprintf("INSERT INTO %s (%s) VALUES(?)", o.TableName, o.VersionColumn), m.Version)
 	if err != nil {
-		log.Panicln("could not complete UP migration", err)
+		Logger.Panicln("could not complete UP migration", err)
 	}
-	log.Println("Migration table updated", getLastId(res))
+	Logger.Println("Migration table updated", getLastId(res))
 }
 
 func (o IMigrator) upVersion(version int64) {
@@ -286,14 +289,14 @@ func (o *IMigrator) Down(steps int, version int64) {
 func (o IMigrator) execDown(m Migration) {
 	res, err := o.DB.Exec(m.Dn)
 	if err != nil {
-		log.Panicln("Migration err", m.Version, err)
+		Logger.Panicln("Migration err", m.Version, err)
 	}
-	log.Printf("Down completed %d %d\n", m.Version, getLastId(res))
+	Logger.Printf("Down completed %d %d\n", m.Version, getLastId(res))
 	res, err = o.DB.Exec(fmt.Sprintf("DELETE FROM %s WHERE %s = ?", o.TableName, o.VersionColumn), m.Version)
 	if err != nil {
-		log.Panicln("could not complete DOWN migration", err)
+		Logger.Panicln("could not complete DOWN migration", err)
 	}
-	log.Println("Migration table updated", getLastId(res))
+	Logger.Println("Migration table updated", getLastId(res))
 }
 
 func (o IMigrator) downVersion(version int64) {
@@ -319,10 +322,10 @@ func (o *IMigrator) Rollback(steps int) {
 
 // Status prints out which migrations have been run and which are pending.
 func (o *IMigrator) Status() {
-	log.Println("STATUS")
+	Logger.Println("STATUS")
 	o.setup()
 	for _, v := range o.getCompletedVersions() {
-		log.Println("Migration Completed", v)
+		Logger.Println("Migration Completed", v)
 	}
 	o.pending()
 }
@@ -338,7 +341,7 @@ func (o IMigrator) pending() {
 	o.sortAscending()
 	for _, m := range o.Migrations {
 		if !o.migrated(m) {
-			log.Println("Pending", m.Version)
+			Logger.Println("Pending", m.Version)
 		}
 	}
 }
@@ -350,15 +353,15 @@ func (o IMigrator) pending() {
 func (o IMigrator) Create(name string) {
 	err := os.MkdirAll(o.Dirname, os.ModeDir)
 	if err != nil {
-		log.Panicln(err)
+		Logger.Panicln(err)
 	}
 	now := time.Now()
 	fname := fmt.Sprintf("%d-%s.sql", now.Unix(), name)
 	path := filepath.Join(o.Dirname, fname)
-	log.Println("Created", path)
+	Logger.Println("Created", path)
 	f, err := os.Create(path)
 	if err != nil {
-		log.Panicln(err)
+		Logger.Panicln(err)
 	}
 	defer f.Close()
 	template := fmt.Sprintf(`
